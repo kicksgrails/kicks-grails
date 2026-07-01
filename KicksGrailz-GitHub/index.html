@@ -95,7 +95,6 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-/* ===== CONFIGURAZIONE SUPABASE (già compilata) ===== */
 window.KG_CONFIG = {
   url: "https://caenqegwfxujzhlddnku.supabase.co",
   anonKey: "sb_publishable_1TP58NpkxeMh4kImrx-d2g_1HL9nJRi"
@@ -126,7 +125,10 @@ var ICON={
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
   pencil:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+  sell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>'
 };
 var KEY="kg_gestionale_v1",ROW_ID=1;
 var emptyData={magazzino:[],vendite:[],saldi:[],spedizioni:[]};
@@ -162,6 +164,27 @@ function subscribeRealtime(cb){
     {event:"*",schema:"public",table:"app_state",filter:"id=eq."+ROW_ID},
     function(p){if(p.new&&p.new.payload)cb(p.new.payload);}).subscribe();
 }
+var CORRIERI=["Poste/SDA","BRT","GLS","DHL","4PX","YunExpress","Cainiao","Altro"];
+function trackUrl(corriere,tracking){
+  var t=encodeURIComponent((tracking||"").trim());
+  if(!t)return "";
+  switch(corriere){
+    case "Poste/SDA": return "https://www.poste.it/cerca/index.html#/risultati-spedizioni/"+t;
+    case "BRT": return "https://vas.brt.it/vas/sped_numspe_par.hsm?Nspediz="+t;
+    case "GLS": return "https://www.gls-italy.com/?option=com_gls&view=track_e_trace&numero_spedizione="+t;
+    case "DHL": return "https://www.dhl.com/it-it/home/tracciabilita.html?tracking-id="+t;
+    case "4PX": return "https://track.4px.com/#/result/0/"+t;
+    case "YunExpress": return "https://www.yuntrack.com/parcelTracking?id="+t;
+    case "Cainiao": return "https://global.cainiao.com/detail.htm?mailNoList="+t;
+    default: return "https://t.17track.net/it#nums="+t;
+  }
+}
+function roi(acquisto,margine){
+  var a=num(acquisto);
+  if(a<=0)return "";
+  var pct=Math.round((margine/a)*100);
+  return (pct>=0?"+":"")+pct+"%";
+}
 function eur(n){if(n===""||n==null||isNaN(n))return "—";return new Intl.NumberFormat("it-IT",{style:"currency",currency:"EUR"}).format(n);}
 function num(v){return (v===""||v==null||isNaN(parseFloat(v)))?0:parseFloat(v);}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
@@ -182,6 +205,49 @@ function pill(map,value){var s=map[value];if(!s)return '<span style="color:var(-
 function statTile(lbl,val,color){return '<div class="stat"><div class="lbl">'+esc(lbl)+'</div><div class="val" style="color:'+(color||"var(--txt)")+'">'+val+'</div></div>';}
 function searchBar(){return '<div class="search">'+ICON.search+'<input id="searchInput" placeholder="Cerca…" value="'+esc(QUERY)+'"></div>';}
 function filt(arr,keys){if(!QUERY)return arr;var q=QUERY.toLowerCase();return arr.filter(function(x){return keys.some(function(k){return (x[k]||"").toString().toLowerCase().indexOf(q)>=0;});});}
+function exportData(){
+  var blob=new Blob([JSON.stringify(DATA,null,2)],{type:"application/json"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  var d=new Date();
+  var stamp=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+  a.href=url;a.download="kicksgrailz-backup-"+stamp+".json";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
+function importData(input){
+  var file=input.files&&input.files[0];
+  if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var d=JSON.parse(e.target.result);
+      if(!d||typeof d!=="object")throw new Error("formato");
+      if(!confirm("Importare questo backup? I dati attuali verranno sostituiti."))return;
+      DATA=Object.assign({},emptyData,{magazzino:d.magazzino||[],vendite:d.vendite||[],saldi:d.saldi||[],spedizioni:d.spedizioni||[]});
+      commit();
+      alert("Backup importato \u2713");
+    }catch(err){alert("File non valido. Assicurati che sia un backup KG.");}
+  };
+  reader.readAsText(file);
+  input.value="";
+}
+function rendicontoCard(){
+  var all=mensile();
+  var withData=all.filter(function(r){return r.val!==0;});
+  if(withData.length===0)return "";
+  var rows=withData.map(function(r){
+    var col=r.val>0?"var(--green)":r.val<0?"var(--red)":"var(--mute)";
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 4px;border-bottom:1px solid var(--line)">'+
+      '<span style="font-size:13.5px;letter-spacing:.3px">'+esc(r.mese)+'</span>'+
+      '<span style="font-weight:800;font-size:15px;color:'+col+'">'+eur(r.val)+'</span></div>';
+  }).join("");
+  var tot=withData.reduce(function(s,r){return s+r.val;},0);
+  rows+='<div style="display:flex;justify-content:space-between;align-items:center;padding:13px 4px 4px">'+
+    '<span style="font-size:13px;font-weight:800;color:var(--gold);letter-spacing:.5px">TOTALE</span>'+
+    '<span style="font-weight:800;font-size:16px;color:var(--gold)">'+eur(tot)+'</span></div>';
+  return '<div class="card" style="margin-bottom:20px"><div class="card-title">Rendiconto mensile</div>'+rows+'</div>';
+}
 function chartSVG(){
   var all=mensile();var has=all.some(function(r){return r.val!==0;});
   if(!has)return '<div class="empty">'+ICON.stat+'<div>Aggiungi vendite per vedere l\'andamento</div></div>';
@@ -198,7 +264,13 @@ function chartSVG(){
 }
 function sectionHead(title,count,section){return '<div class="row-head"><h2 class="sec">'+esc(title)+' <span>'+count+'</span></h2><button class="btn-add" onclick="openModal(\''+section+'\')">'+ICON.plus+' Aggiungi</button></div>';}
 function emptyBox(icon,text){return '<div class="empty">'+(ICON[icon]||ICON.stat)+'<div>'+esc(text)+'</div></div>';}
-function itemActs(section,id){return '<div class="acts"><button class="iconbtn" onclick="openModal(\''+section+'\',\''+id+'\')">'+ICON.pencil+'</button><button class="iconbtn" style="color:#c25151" onclick="delItem(\''+section+'\',\''+id+'\')">'+ICON.trash+'</button></div>';}
+function itemActs(section,id,withDup,withSell){
+  var sell=withSell?'<button class="iconbtn" style="color:var(--gold);border-color:var(--gold-dim)" title="Vendi" onclick="sellFromMag(\''+id+'\')">'+ICON.sell+'</button>':'';
+  var dup=withDup?'<button class="iconbtn" onclick="dupItem(\''+section+'\',\''+id+'\')">'+ICON.copy+'</button>':'';
+  return '<div class="acts">'+sell+dup+
+    '<button class="iconbtn" onclick="openModal(\''+section+'\',\''+id+'\')">'+ICON.pencil+'</button>'+
+    '<button class="iconbtn" style="color:#c25151" onclick="delItem(\''+section+'\',\''+id+'\')">'+ICON.trash+'</button></div>';
+}
 function render(){
   var app=document.getElementById("app");var html="";
   if(TAB==="stat"){
@@ -206,14 +278,20 @@ function render(){
     html+='<div class="grid2" style="margin-bottom:10px">'+statTile("Guadagno netto",eur(k.net),"var(--gold)")+statTile("Incassato",eur(k.inc),"var(--green)")+statTile("Da incassare",eur(k.da),"var(--yellow)")+statTile("Spese",eur(k.sp),"var(--red)")+'</div>';
     html+='<div class="grid2" style="margin-bottom:18px">'+statTile("Saldi da incassare",eur(saldiTot()))+statTile("Valore magazzino",eur(mt.a))+'</div>';
     html+='<div class="card" style="margin-bottom:20px"><div class="card-title">Andamento mensile</div>'+chartSVG()+'</div>';
+    html+=rendicontoCard();
+    html+='<div style="display:flex;gap:10px;margin-bottom:8px">'+
+      '<button onclick="exportData()" style="flex:1;background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-size:13px;font-weight:700;cursor:pointer">\u2B07\uFE0E Esporta backup</button>'+
+      '<button onclick="document.getElementById(\'importFile\').click()" style="flex:1;background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-size:13px;font-weight:700;cursor:pointer">\u2B06\uFE0E Importa backup</button>'+
+      '<input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importData(this)">'+
+      '</div>';
   }else if(TAB==="vendite"){
     html+=sectionHead("Vendite",DATA.vendite.length,"vendite");
     if(DATA.vendite.length===0)html+=emptyBox("vendite","Nessuna vendita. Tocca + per iniziare.");
-    else{html+=searchBar();filt(venComputed(),["modello","mese"]).slice().reverse().forEach(function(v){var gc=v.guadagno>0?"var(--green)":v.guadagno<0?"var(--red)":"var(--mute)";html+='<div class="item"><div class="item-top"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><span class="item-name">'+esc(v.modello||"—")+'</span>'+pill(STATUS,v.stato)+'</div><div class="item-meta">'+(v.mese?'<span>'+esc(v.mese)+'</span>':'')+(v.taglia?'<span>Tg '+esc(v.taglia)+'</span>':'')+(v.qta?'<span>×'+esc(v.qta)+'</span>':'')+'<span style="margin-left:auto;font-weight:800;font-size:14px;color:'+gc+'">'+eur(v.guadagno)+'</span></div></div>'+itemActs("vendite",v.id)+'</div></div>';});}
+    else{html+=searchBar();filt(venComputed(),["modello","mese"]).slice().reverse().forEach(function(v){var gc=v.guadagno>0?"var(--green)":v.guadagno<0?"var(--red)":"var(--mute)";html+='<div class="item"><div class="item-top"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><span class="item-name">'+esc(v.modello||"—")+'</span>'+pill(STATUS,v.stato)+'</div><div class="item-meta">'+(v.mese?'<span>'+esc(v.mese)+'</span>':'')+(v.taglia?'<span>Tg '+esc(v.taglia)+'</span>':'')+(v.qta?'<span>×'+esc(v.qta)+'</span>':'')+'<span style="margin-left:auto;font-weight:800;font-size:14px;color:'+gc+'">'+eur(v.guadagno)+((v.stato!=="SPESA"&&roi(v.acquisto,v.guadagno))?' <span style="font-size:11px;opacity:.75">'+roi(v.acquisto,v.guadagno)+'</span>':'')+'</span></div></div>'+itemActs("vendite",v.id,true)+'</div></div>';});}
   }else if(TAB==="magazzino"){
     html+=sectionHead("Magazzino",DATA.magazzino.length,"magazzino");
     if(DATA.magazzino.length===0)html+=emptyBox("magazzino","Magazzino vuoto. Tocca + per aggiungere.");
-    else{html+=searchBar();filt(DATA.magazzino,["modello","condizioni"]).slice().reverse().forEach(function(m){var marg=(num(m.acquisto)&&num(m.vendita))?num(m.vendita)-num(m.acquisto):null;html+='<div class="item"><div class="item-top"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px"><span class="item-name">'+esc(m.modello||"—")+'</span>'+(marg!=null?'<span style="font-weight:800;font-size:14px;color:'+(marg>=0?"var(--gold)":"var(--red)")+'">'+eur(marg)+'</span>':'')+'</div><div class="item-meta">'+(m.taglia?'<span>Tg '+esc(m.taglia)+'</span>':'')+(m.condizioni?'<span>'+esc(m.condizioni)+'</span>':'')+(num(m.acquisto)>0?'<span>Acq '+eur(num(m.acquisto))+'</span>':'')+(num(m.vendita)>0?'<span>Vend '+eur(num(m.vendita))+'</span>':'')+(m.conto?'<span style="color:var(--gold-dim)">contovendita</span>':'')+'</div></div>'+itemActs("magazzino",m.id)+'</div></div>';});}
+    else{html+=searchBar();filt(DATA.magazzino,["modello","condizioni"]).slice().reverse().forEach(function(m){var marg=(num(m.acquisto)&&num(m.vendita))?num(m.vendita)-num(m.acquisto):null;var thumb=m.foto?'<img src="'+esc(m.foto)+'" alt="" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;background:var(--panel2);border:1px solid var(--line)" onerror="this.style.display=\'none\'">':'';html+='<div class="item"><div class="item-top"><div style="flex:1;min-width:0;display:flex;gap:12px;align-items:flex-start">'+thumb+'<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px"><span class="item-name">'+esc(m.modello||"—")+'</span>'+(marg!=null?'<span style="font-weight:800;font-size:14px;color:'+(marg>=0?"var(--gold)":"var(--red)")+'">'+eur(marg)+(roi(m.acquisto,marg)?' <span style="font-size:11px;opacity:.75">'+roi(m.acquisto,marg)+'</span>':'')+'</span>':'')+'</div><div class="item-meta">'+(m.taglia?'<span>Tg '+esc(m.taglia)+'</span>':'')+(m.condizioni?'<span>'+esc(m.condizioni)+'</span>':'')+(num(m.acquisto)>0?'<span>Acq '+eur(num(m.acquisto))+'</span>':'')+(num(m.vendita)>0?'<span>Vend '+eur(num(m.vendita))+'</span>':'')+(m.conto?'<span style="color:var(--gold-dim)">contovendita</span>':'')+'</div></div></div>'+itemActs("magazzino",m.id,false,true)+'</div></div>';});}
   }else if(TAB==="saldi"){
     html+=sectionHead("Saldi dovuti",DATA.saldi.length,"saldi");
     if(DATA.saldi.length>0)html+='<div style="margin-bottom:14px">'+statTile("Totale da incassare",eur(saldiTot()),"var(--gold)")+'</div>';
@@ -223,7 +301,7 @@ function render(){
     html+=sectionHead("Spedizioni",DATA.spedizioni.length,"spedizioni");
     if(DATA.spedizioni.length>0)html+='<div style="margin-bottom:14px">'+statTile("Totale spedizioni",eur(spedTot()))+'</div>';
     if(DATA.spedizioni.length===0)html+=emptyBox("spedizioni","Nessuna spedizione registrata.");
-    else{html+=searchBar();filt(DATA.spedizioni,["modello","destinatario","tracking"]).slice().reverse().forEach(function(s){html+='<div class="item"><div class="item-top"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><span class="item-name">'+esc(s.modello||"—")+'</span>'+pill(SHIP,s.stato)+'</div><div class="item-meta">'+(s.destinatario?'<span>'+esc(s.destinatario)+'</span>':'')+(s.corriere?'<span>'+esc(s.corriere)+'</span>':'')+(s.tracking?'<span style="color:var(--gold-dim)">'+esc(s.tracking)+'</span>':'')+(num(s.costo)>0?'<span style="margin-left:auto;font-weight:700">'+eur(num(s.costo))+'</span>':'')+'</div></div>'+itemActs("spedizioni",s.id)+'</div></div>';});}
+    else{html+=searchBar();filt(DATA.spedizioni,["modello","destinatario","tracking"]).slice().reverse().forEach(function(s){var turl=trackUrl(s.corriere,s.tracking);var trackHtml=s.tracking?(turl?'<a href="'+turl+'" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none;display:inline-flex;align-items:center;gap:4px">'+esc(s.tracking)+'<span style="width:12px;height:12px;display:inline-block">'+ICON.link+'</span></a>':'<span style="color:var(--gold-dim)">'+esc(s.tracking)+'</span>'):'';html+='<div class="item"><div class="item-top"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><span class="item-name">'+esc(s.modello||"—")+'</span>'+pill(SHIP,s.stato)+'</div><div class="item-meta">'+(s.destinatario?'<span>'+esc(s.destinatario)+'</span>':'')+(s.corriere?'<span>'+esc(s.corriere)+'</span>':'')+(trackHtml?'<span>'+trackHtml+'</span>':'')+(num(s.costo)>0?'<span style="margin-left:auto;font-weight:700">'+eur(num(s.costo))+'</span>':'')+'</div></div>'+itemActs("spedizioni",s.id)+'</div></div>';});}
   }
   app.innerHTML=html;
   var si=document.getElementById("searchInput");
@@ -236,9 +314,26 @@ function renderNav(){
 }
 function switchTab(t){TAB=t;QUERY="";render();}
 function delItem(section,id){DATA[section]=DATA[section].filter(function(x){return x.id!==id;});commit();}
+function dupItem(section,id){
+  var orig=DATA[section].find(function(x){return x.id===id;});
+  if(!orig)return;
+  var copy=Object.assign({},orig,{id:uid()});
+  DATA[section]=DATA[section].concat([copy]);
+  commit();
+}
+function sellFromMag(id){
+  var m=DATA.magazzino.find(function(x){return x.id===id;});
+  if(!m)return;
+  var v={id:uid(),mese:"",modello:m.modello||"",taglia:m.taglia||"",qta:"1",acquisto:m.acquisto||"",vendita:m.vendita||"",stato:"INCASSATO"};
+  DATA.vendite=DATA.vendite.concat([v]);
+  DATA.magazzino=DATA.magazzino.filter(function(x){return x.id!==id;});
+  commit();
+  TAB="vendite";render();
+  openModal("vendite",v.id);
+}
 function blank(section){
   if(section==="vendite")return {id:uid(),mese:"",modello:"",taglia:"",qta:"",acquisto:"",vendita:"",stato:""};
-  if(section==="magazzino")return {id:uid(),modello:"",taglia:"",condizioni:"",acquisto:"",vendita:"",conto:false,note:""};
+  if(section==="magazzino")return {id:uid(),modello:"",taglia:"",condizioni:"",acquisto:"",vendita:"",conto:false,note:"",foto:""};
   if(section==="saldi")return {id:uid(),compratore:"",importo:"",nome:""};
   if(section==="spedizioni")return {id:uid(),modello:"",destinatario:"",corriere:"",tracking:"",costo:"",stato:""};
 }
@@ -259,13 +354,15 @@ function openModal(section,id){
     body+=f("Modello",inp("modello","text","Es. Jordan 1 High Fragment"));
     body+='<div class="grid2">'+f("Taglia",inp("taglia"))+f("Condizioni",inp("condizioni","text","DS / 9,5"))+'</div>';
     body+='<div class="grid2">'+f("Prezzo acquisto €",inp("acquisto","number"))+f("Prezzo vendita €",inp("vendita","number"))+'</div>';
+    body+=f("Foto (URL immagine)",inp("foto","text","Incolla il link dell'immagine"));
     body+=f("Note",inp("note"));
     body+='<label class="chk"><input type="checkbox" data-k="conto" '+(item.conto?"checked":"")+'> In contovendita</label>';
   }else if(section==="saldi"){
     body+=f("Compratore",inp("compratore","text","Es. Negozio"));body+=f("Importo dovuto €",inp("importo","number"));body+=f("Nome / riferimento",inp("nome"));
   }else if(section==="spedizioni"){
     body+=f("Modello",inp("modello"));body+=f("Destinatario",inp("destinatario"));
-    body+='<div class="grid2">'+f("Corriere",inp("corriere"))+f("Costo €",inp("costo","number"))+'</div>';
+    body+=f("Corriere",sel("corriere",CORRIERI));
+    body+=f("Costo €",inp("costo","number"));
     body+=f("Tracking",inp("tracking"));body+=f("Stato",sel("stato",["DA SPEDIRE","SPEDITO","CONSEGNATO"]));
   }
   var mr=document.getElementById("modalRoot");
